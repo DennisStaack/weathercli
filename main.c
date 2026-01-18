@@ -30,7 +30,11 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 
 
 void ProcessData(char *jsonString) {
+	if (jsonString == NULL) return;
+
 	cJSON *json = cJSON_Parse(jsonString);
+
+	//printf("\n%s\n", jsonString);
 
 	if (json == NULL) {
 		const char *error_ptr = cJSON_GetErrorPtr();
@@ -40,19 +44,28 @@ void ProcessData(char *jsonString) {
 		return;
 	}
 
-	const cJSON *current_weather = cJSON_GetObjectItemCaseSensitive(json, "current_weather");
-	const cJSON *temperatur = cJSON_GetObjectItemCaseSensitive(current_weather, "temperature");
-	const cJSON *windspeed = cJSON_GetObjectItemCaseSensitive(json, "windspeed");
 
-	if (cJSON_IsNumber(temperatur) && cJSON_IsNumber(windspeed)) {
-		printf("\n------------------------------\n");
-		printf("current weather:\n");
-		printf("Temp:	%.1f °C\n", temperatur->valuedouble);
-		printf("Windspeed:	%.1f km/h\n", windspeed->valuedouble);
-		printf("------------------------------\n");
+	cJSON *current_weather = cJSON_GetObjectItemCaseSensitive(json, "current_weather");
+
+	if (current_weather == NULL) {
+		printf("error: current weather null\n");
+	} else {
+
+		cJSON *temperatur = cJSON_GetObjectItemCaseSensitive(current_weather, "temperature");
+		cJSON *windspeed = cJSON_GetObjectItemCaseSensitive(current_weather, "windspeed");
+
+		if (cJSON_IsNumber(temperatur) && cJSON_IsNumber(windspeed)) {
+			printf("\n------------------------------\n");
+			printf("current weather:\n");
+			printf("Temp:	%lf °C\n", temperatur->valuedouble);
+			printf("Windspeed:	%lf km/h\n", windspeed->valuedouble);
+			printf("------------------------------\n");
+		} else {
+			printf("data present, wrong format\n");
+		}
+
+		cJSON_Delete(json);
 	}
-
-	cJSON_Delete(json);
 }
 
 
@@ -71,7 +84,7 @@ int main() {
 	curl_handle = curl_easy_init();
 
 	if(curl_handle) {
-		curl_easy_setopt(curl_handle, CURLOPT_URL, "https://api.open-meteo.com/v1/forecast?latitude=48.80&longitude=11.34&current_weather=true");
+		curl_easy_setopt(curl_handle, CURLOPT_URL, "https://api.open-meteo.com/v1/forecast?latitude=48.8&longitude=11.34&current_weather=true");
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
 		curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
 		curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
@@ -79,11 +92,14 @@ int main() {
 		res = curl_easy_perform(curl_handle);
 
 		if(res != CURLE_OK) {
-			fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+			fprintf(stderr, "curl failed: %s\n", curl_easy_strerror(res));
 		} else {
-			ProcessData(chunk.memory);
+			if (chunk.size > 0) {
+				ProcessData(chunk.memory);
+			} else {
+				printf("no data recieved\n");
+			}
 		}
-
 		curl_easy_cleanup(curl_handle);
 	}
 
